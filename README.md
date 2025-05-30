@@ -17,17 +17,6 @@ This repository contains the analysis scripts that are associated with image ana
 
 Editing masks systematically before manual check using skikit-images<sup id="a5">[5](#f5)</sup>. This website outlines the Cell-poseSAM changes<sup id="a6">[6](#f6)</sup> that were apart of the 2025 update. This website is general information about the model<sup id="a7">[7](#f7)</sup>.
 
-
-## Commands for napari-env 
-
-conda create -y -n napari-env -c conda-forge python=3.9
-conda activate napari-env  
-conda install -c conda-forge napari 
-conda install -c conda-forge ipykernel jupyter matplotlib 
-conda install -c conda-forge numpy pandas scikit-image scipy loguru
-conda install -c conda-forge aicsimageio cellpose statannotations 
-
-
 ## References
 
 <b id="f1">1.</b> This repository format adapted from https://github.com/dezeraecox-manuscripts/COX_Proteome-stability [↩](#a1)
