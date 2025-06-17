@@ -7,15 +7,6 @@ import matplotlib.pyplot as plt
 from cellpose import models
 from cellpose import plot
 from loguru import logger
-from scipy import ndimage as ndi
-from skimage import (
-    exposure,filters, measure, morphology, segmentation
-)
-from skimage.segmentation import watershed
-from skimage.feature import peak_local_max
-from skimage.morphology import disk, ball
-from skimage.filters.rank import equalize
-from skimage.filters import rank
 from cellpose.io import logger_setup
 logger_setup();
 
@@ -34,7 +25,7 @@ def apply_cellpose(images, image_type='sam', channels = None, diameter=None, flo
     Args:
         images (ndarray): numpy array of 16 bit images
         image_type (str, optional): Cellpose SAM model. Defaults to 'sam' as indicated by the May 2025 update.
-        channels (int, optional): define CHANNELS to run segementation on (grayscale=0, R=1, G=2, B=3) where channels = [samplasm, nucleus]. Defaults to None with the new update.
+        channels (int, optional): define CHANNELS to run segementation on (grayscale=0, R=1, G=2, B=3) where channels = [cytoplasm, nucleus]. Defaults to None with the new update.
         diameter (int, optional): Expected diameter of cell or nucleus. Defaults to None with the new update, but you can edit this.
         flow_threshold (float, optional): maximum allowed error of the flows for each mask. Defaults to 0.4.
         cellprob_threshold (float, optional): The network predicts 3 outputs: flows in X, flows in Y, and cell “probability”. The predictions the network makes of the probability are the inputs to a sigmoid centered at zero (1 / (1 + e^-x)), so they vary from around -6 to +6. Decrease this threshold if cellpose is not returning as many ROIs as you expect. Defaults to 0.0.
@@ -84,68 +75,50 @@ imgs = [np.load(f'{input_folder}{filename}')
 images = {filename.replace('.npy', ''): np.load(
     f'{input_folder}{filename}') for filename in file_list}
 
+# ----------------Prepare images for cell segmentation----------------
+# Set the channel (ch) that you want to use for cell segmentation as image[ch,:,:]
+# Remember that if its channel 1 on microscope software then its channel 0 here (because python is base 0)
+mask_channel = [image[0, :, :] for name, image in images.items()]
 
-# ----------------Outline Cells-----------------
+# set the nuclear channel, usually this is the last channel - change the image[ch,:,:]
+nuclear_channel = [image[1, :, :] for name, image in images.items()]
 
-#Set the channel that you want to use for the cell mask at image[here,:,:]
-#Remember that if its channel 1 on microscope software then its channel 0 here 
-cell_channel = [image[0, :, :] for name, image in images.items()]
-
-
-# #Adapt this if you need to brighten the image for segmentation purposes (will not manipulate data)
+# # Adapt this if you need to brighten the image for segmentation purposes (will not manipulate data)
 # # Assume 16-bit images; scale brightness for segmentation only
 # # You can comment this out if your images dont need this. but I find that images generally do better with enhancing brightness 
-# brightened = [
+# mask_channel = [
 #     np.clip(channel * 5, 0, 65535).astype(np.uint16)  # Keep data in 16-bit
-#     for channel in cell_channel
+#     for channel in mask_channel
 # ]
 
-
-#-------Run this chunk first to visualize a few images masked before saving--------------------
-
-## this will only run the first four images so you can make sure the masking is sound 
-# segment cytoplasm
+# ----------------Optimize cell segmentation settings----------------
+# this will only run the first four images so you can make sure the masking is sound 
+# optimize segmentation of cells
 masks, flows, styles = apply_cellpose(
-        cell_channel[:4], image_type='sam', diameter=None, flow_threshold=0.0, cellprob_threshold=0)
+        mask_channel[:4], image_type='sam', diameter=None, flow_threshold=0.0, cellprob_threshold=0)
+visualise_cell_pose(mask_channel[:4], masks, flows)
 
-visualise_cell_pose(cell_channel[:4], masks, flows, channels=[0, 0])
+# to check the cell diameter, run ```plt.imshow(mask_channel[0])``` in the interactive window 
 
-# to check the diameter size/ size of the cells - do plt.imshow(images['name'[channel]]) in the interactive window 
-
-
-#------------Run this once you have checked a few images and are ready to save masks--------------
-
-# segment cytoplasm
+# ----------------Segment and save masks----------------
+# copy optimized settings from previous 'apply_cellpose' to segment and save cell masks
 masks, flows, styles = apply_cellpose(
-        cell_channel, image_type='sam', diameter=None, flow_threshold=0.0, cellprob_threshold=0)
-
-#this is still only showing 4 because you dont need to see them all at this step but you can change the amount of images you look at by changing the [:4] to whatever amount of images you want 
-visualise_cell_pose(cell_channel[:4], masks, flows, channels=[0, 0])
+        mask_channel, image_type='sam', diameter=None, flow_threshold=0.0, cellprob_threshold=0)
 
 # save cell masks before moving on to nuclei (for memory)
 np.save(f'{output_folder}cellpose_cellmasks.npy', masks)
 logger.info('cell masks saved')
 
-# ----------------Outline nuclei----------------
-
-
-#---------------Run this first to check a few images ---------------------------------------------
-#set the nuclear channel, usually this is the last channel - change the image[here,:,:]
-nuclear_channel = [image[1, :, :] for name, image in images.items()]
-
-# segment nuclei
+# ----------------Optimize nuclear segmentation settings----------------
+# optimize segmentation of nuclei
 nuc_masks, flows, styles = apply_cellpose(
         nuclear_channel[:4], image_type='sam', diameter=None, flow_threshold=0.4, cellprob_threshold=0)
-visualise_cell_pose(nuclear_channel[:4], nuc_masks, flows, channels=[0, 0])
+visualise_cell_pose(nuclear_channel[:4], nuc_masks, flows)
 
-
-
-###---------------------Run this after you checked and are ready to save ----------------------
-
+# ----------------Segment and save masks----------------
 # segment nuclei
 nuc_masks, flows, styles = apply_cellpose(
         nuclear_channel, image_type='sam', diameter=None, flow_threshold=0.4, cellprob_threshold=0)
-visualise_cell_pose(nuclear_channel[:4], nuc_masks, flows, channels=[0, 0])
 
 # save nuclei masks
 np.save(f'{output_folder}cellpose_nucmasks.npy', nuc_masks)
