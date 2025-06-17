@@ -4,8 +4,8 @@
 import os
 import numpy as np
 from loguru import logger
-from aicsimageio import AICSImage
-from aicsimageio.writers.ome_tiff_writer import OmeTiffWriter
+from bioio import BioImage
+import bioio_ome_tiff
 
 logger.info('Import ok')
 
@@ -16,8 +16,15 @@ if not os.path.exists(output_folder):
     os.mkdir(output_folder)
 
 
-def image_converter(image_name, input_folder, output_folder, tiff=False, array=True):
-    """Convert and save images from supported formats"""
+def image_converter(image_name, input_folder, output_folder, array=True):
+    """converts images from instrument filetype (e.g., czi, lif, tif) to numpy array
+
+    Args:
+        image_name (str): image name
+        input_folder (str): path to input folder
+        output_folder (str): path to output folder
+        array (numpy array, optional): saves image as numpy array. Defaults to True.
+    """ 
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 
@@ -32,10 +39,8 @@ def image_converter(image_name, input_folder, output_folder, tiff=False, array=T
         return
 
     # Load image
-    image = AICSImage(full_path).get_image_data("CYX", B=0, Z=0, V=0, T=0)
-
-    if tiff:
-        OmeTiffWriter.save(image, f'{output_folder}{image_name}.tif', dim_order='CYX')
+    img = BioImage(full_path)
+    image = img.get_image_data("CYX", B=0, Z=0, V=0, T=0)
 
     if array:
         np.save(f'{output_folder}{image_name}.npy', image)
