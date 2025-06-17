@@ -4,10 +4,9 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+import skimage as ski
 import napari
 from loguru import logger
-from scipy import ndimage
-from skimage.measure import label
 from skimage.segmentation import clear_border
 from napari.settings import get_settings
 get_settings().application.ipy_interactive = False
@@ -87,6 +86,9 @@ for name, image in remove_border_cells.items():
     # remove cells near border
     cells_filtered = clear_border(image[1][0, :, :], buffer_size=10)
 
+    # keep objects larger than minimum size
+    cells_filtered = ski.morphology.remove_small_objects(cells_filtered, min_size=1000)
+
     # keep intracellular nuclei
     intra_nuclei = np.where(cells_filtered >= 1, image[1][1, :, :], 0)
     
@@ -94,9 +96,7 @@ for name, image in remove_border_cells.items():
     cells_filtered_stack = np.stack((cells_filtered.copy(), intra_nuclei.copy()))
     stack_channels(name, masks_filtered, cells_filtered_stack)
 
-# ---------------Manually filter masks---------------
-# ONLY RUN THIS CHUNK ONCE. Manually validate cellpose segmentation through NAPARI GUI. 
-
+# ----------------Manually filter masks----------------
 already_filtered_masks = [filename.replace('_mask.npy', '') for filename in os.listdir(
     f'{output_folder}') if '_mask.npy' in filename]
 unval_images = dict([(key, val) for key, val in images.items() if key not in already_filtered_masks])
@@ -108,8 +108,7 @@ for image_name, image_stack in unval_images.items():
     filtered_masks[image_name] = filter_masks(
         image_stack, image_name, mask_stack)
 
-
-#### ------------- EXPLANNATION OF HOW NAPARI GUI WORKS -----------------------
+#### ----------------------- EXPLANATION OF HOW NAPARI GUI WORKS -----------------------
 # Once you run the above chunk, a napari window will open and everytime you close it, the next image will appear and the mask you just edited/ looked at will save 
 
 #### How to stop but not save - hit interrupt in the interactive window to close napari without saving the current image you are at 
